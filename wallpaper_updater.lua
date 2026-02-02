@@ -59,13 +59,13 @@ local function cleanup_old_files(keep_path)
 end
 
 -- Construct image URL for a given timestamp
--- Rounds down to nearest 10 minutes and subtracts 10 minutes
+-- Rounds down to nearest 20 minutes and subtracts 7 minutes (image interval is 10 minutes by day and 20 by night)
 local function construct_img_url(timestamp)
-    -- Subtract 10 minutes (600 seconds)
-    local adjusted_time = timestamp - 600
+    -- Subtract 7 minutes (420 seconds)
+    local adjusted_time = timestamp - 420
     
-    -- Round down to nearest 10 minutes
-    local rounded_time = math.floor(adjusted_time / 600) * 600
+    -- Round down to nearest 20 minutes
+    local rounded_time = math.floor(adjusted_time / 1200) * 1200
     
     -- Format timestamp as date components
     local date_table = os.date("*t", rounded_time)
@@ -179,11 +179,20 @@ local function crop_and_set_wallpaper(image_path)
         
         -- Save cropped image temporarily
         local cropped_path = DATA_DIR .. "/current_cropped_" .. screen:getUUID() .. ".jpg"
-        cropped_image:saveToFile(cropped_path)
+        local save_success =cropped_image:saveToFile(cropped_path)
         
         -- Set as wallpaper
-        screen:desktopImageURL("file://" .. cropped_path)
-        logger.i("Wallpaper set for screen: " .. screen:name())
+        if not save_success then
+            logger.e("Failed to save cropped image for screen: " .. screen:name())
+        else
+            -- Set as wallpaper with verification
+            local success = screen:desktopImageURL("file://" .. cropped_path)
+            if success then
+                logger.i("New wallpaper set for screen: " .. screen:name())
+            else
+                logger.e("Failed to set new wallpaper for screen: " .. screen:name())
+            end
+        end
     end
     
     return true
@@ -197,7 +206,6 @@ local function update_wallpaper()
     local zurich_tz = hs.execute("TZ='Europe/Zurich' date +%s"):gsub("%s+", "")
     local current_time = tonumber(zurich_tz)
     local url = construct_img_url(current_time)
-    logger.i("Webcam download URL: " .. url)
     
     download_image(url, function(success, file_path)
         if success and file_path then
